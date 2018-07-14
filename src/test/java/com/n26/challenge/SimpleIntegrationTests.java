@@ -77,7 +77,6 @@ public class SimpleIntegrationTests {
     }
 
     private void waitForSec(int sec) {
-        System.out.println(sec);
         try {
             Thread.sleep(sec * 1000);
         } catch (InterruptedException e) {
