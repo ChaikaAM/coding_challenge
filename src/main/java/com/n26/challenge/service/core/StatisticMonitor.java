@@ -9,9 +9,9 @@ import org.springframework.stereotype.Service;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.Comparator;
+import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.concurrent.Executors;
-import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -30,15 +30,15 @@ public class StatisticMonitor {
     private volatile double min = 0;
     private volatile long count = 0;
 
-    private final Queue<Transaction> transactions = new PriorityBlockingQueue<>(1, Comparator.comparing(Transaction::getTimestamp));
+    private final Queue<Transaction> transactions = new PriorityQueue(Comparator.comparing(Transaction::getTimestamp));
 
     @PostConstruct
     public void initMonitor() {
         executorService.scheduleWithFixedDelay(() -> {
-            if (!transactions.isEmpty() && isDateOutdated(transactions.peek())) {
+            if (!transactions.isEmpty()) {
                 clearOutdatedTransactions();
-                recalculateStats();
             }
+            recalculateStats();
         }, 0, 1, TimeUnit.MILLISECONDS);
     }
 
@@ -46,7 +46,7 @@ public class StatisticMonitor {
         return new Statistic(sum, avg, max, min, count);
     }
 
-    public synchronized void submitTransaction(Transaction transaction) {
+    public void submitTransaction(Transaction transaction) {
         if (isDateOutdated(transaction) || !isTimeStampCorrect(transaction))
             throw new NonSubmittableTransactionTimestampException();
         transactions.add(transaction);
@@ -61,9 +61,9 @@ public class StatisticMonitor {
         return transaction.getTimestamp().compareTo(System.currentTimeMillis()) < 0;
     }
 
-    private void clearOutdatedTransactions() {
-        while (isDateOutdated(transactions.peek())) {
-            transactions.poll();
+    private synchronized void clearOutdatedTransactions() {
+        while (!transactions.isEmpty() && isDateOutdated(transactions.peek())) {
+            transactions.remove();
         }
     }
 
