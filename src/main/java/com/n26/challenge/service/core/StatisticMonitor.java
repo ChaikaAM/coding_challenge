@@ -1,4 +1,4 @@
-package com.n26.challenge.service;
+package com.n26.challenge.service.core;
 
 import com.n26.challenge.exception.NonSubmittableTransactionTimestampException;
 import com.n26.challenge.model.Statistic;

@@ -1,0 +1,6 @@
+server:
+  port: 8000
+
+application:
+  transaction:
+    outdate: 60         #I think it should be configurable in properties
