@@ -7,9 +7,9 @@ This is implementation of service for handling transactions and generating stati
 By default statistics is stored for transactions not older than 60 secs (**configurable in application.yml**)
 Port could be configured in properties too.
 Main logic happens inside of `StatisticMonitor`.
-Endpoint for getting statistics executes in O(1), as it was required, by using another thread for recalculating statistics in real time.
-All transactions older than 60 secs are removed in real time too, and of course statistics recalculating stops if collection of transactions becomes empty.
-There were no requirements about logging or storing of old transactions, so all deleted from `StatisticMonitor` transactions will be lost forever.
+Endpoint for getting statistics executes in O(1), as it was required, because statistic getting doe not require any math operations - it just uses statistics that changes in real time.
+It was achieved by using scheduled transactions removing from collection with recalculating stats (in another thread in ScheduledExecutorService). 
+There were no requirements about logging or old transactions storing, so all deleted from `StatisticMonitor` transactions will be lost forever.
 
 ## Start Application
 To run application just use `gradlew bootRun`,
