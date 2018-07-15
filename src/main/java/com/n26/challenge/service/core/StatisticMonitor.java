@@ -3,19 +3,20 @@ package com.n26.challenge.service.core;
 import com.n26.challenge.exception.NonSubmittableTransactionTimestampException;
 import com.n26.challenge.model.Statistic;
 import com.n26.challenge.model.Transaction;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.Comparator;
-import java.util.PriorityQueue;
-import java.util.Queue;
 import java.util.concurrent.Executors;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 @Service
+@Log4j2
 public class StatisticMonitor {
 
     @Value("${application.transaction.outdate}")
@@ -30,16 +31,29 @@ public class StatisticMonitor {
     private volatile double min = 0;
     private volatile long count = 0;
 
-    private final Queue<Transaction> transactions = new PriorityQueue(Comparator.comparing(Transaction::getTimestamp));
+    private final PriorityBlockingQueue<Transaction> transactions = new PriorityBlockingQueue<>(1, Comparator.comparing(Transaction::getTimestamp));
 
     @PostConstruct
     public void initMonitor() {
+        log.info("Starting statistics monitor (handles statistics of transactions not older than {} secs)", outdate);
         executorService.scheduleWithFixedDelay(() -> {
-            if (!transactions.isEmpty()) {
-                clearOutdatedTransactions();
+            if (transactions.isEmpty()) {
+                waitForAnyTransaction();
+                log.info("Handling submitted transactions");
             }
+            clearOutdatedTransactions();
             recalculateStats();
         }, 0, 1, TimeUnit.MILLISECONDS);
+    }
+
+    private void waitForAnyTransaction() {
+        log.info("Waiting for any transaction");
+        try {
+            transactions.add(transactions.take());    //block until any transaction will be added
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            e.printStackTrace();
+        }
     }
 
     public Statistic getStatistic() {
@@ -47,9 +61,13 @@ public class StatisticMonitor {
     }
 
     public void submitTransaction(Transaction transaction) {
-        if (isDateOutdated(transaction) || !isTimeStampCorrect(transaction))
+        log.info("Transaction received - {}", transaction);
+        if (isDateOutdated(transaction) || !isTimeStampCorrect(transaction)) {
+            log.error("Transaction is out of date or timestamp has wrong format");
             throw new NonSubmittableTransactionTimestampException();
+        }
         transactions.add(transaction);
+        log.info("Transaction added to statistics handling - {}", transaction);
         recalculateStats();
     }
 
@@ -63,7 +81,8 @@ public class StatisticMonitor {
 
     private synchronized void clearOutdatedTransactions() {
         while (!transactions.isEmpty() && isDateOutdated(transactions.peek())) {
-            transactions.remove();
+            Transaction outdatedTransaction = transactions.remove();
+            log.info("Transaction has been removed as outdated - {}", outdatedTransaction);
         }
     }
 
